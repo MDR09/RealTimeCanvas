@@ -31,7 +31,7 @@ function createRoom(roomId, roomName, capacity) {
             drawingHistory: [],
             createdAt: new Date()
         });
-        console.log(`✅ Room created: ${roomName} (${roomId})`);
+        console.log(`Room created: ${roomName} (${roomId})`);
     }
 }
 
@@ -45,7 +45,7 @@ function addUserToRoom(roomId, userId, userName, userColor) {
             x: 0,
             y: 0
         });
-        console.log(`✅ ${userName} joined room ${roomId} (${room.users.size}/${room.capacity})`);
+        console.log(`${userName} joined room ${roomId} (${room.users.size}/${room.capacity})`);
         return true;
     }
     return false;
@@ -57,13 +57,13 @@ function removeUserFromRoom(roomId, userId) {
         const user = room.users.get(userId);
         if (user) {
             room.users.delete(userId);
-            console.log(`❌ ${user.name} left room ${roomId}`);
+            console.log(`${user.name} left room ${roomId}`);
         }
 
         // Delete room if empty
         if (room.users.size === 0) {
             rooms.delete(roomId);
-            console.log(`🗑️ Room deleted: ${roomId}`);
+            console.log(`Room deleted: ${roomId}`);
         }
     }
 }
@@ -78,7 +78,7 @@ function getRoomUsers(roomId) {
 
 // ============ Socket.IO Events ============
 io.on('connection', (socket) => {
-    console.log(`🔌 New connection: ${socket.id}`);
+    console.log(`New connection: ${socket.id}`);
 
     // User joins room
     socket.on('join-room', (data) => {
@@ -92,12 +92,12 @@ io.on('connection', (socket) => {
         // Add user to room
         const room = rooms.get(roomId);
         if (!room) {
-            socket.emit('room-error', { message: '❌ Room not found' });
+            socket.emit('room-error', { message: 'ERROR: Room not found' });
             return;
         }
 
         if (room.users.size >= room.capacity) {
-            socket.emit('room-error', { message: '❌ Room is full' });
+            socket.emit('room-error', { message: 'ERROR: Room is full' });
             return;
         }
 
@@ -127,7 +127,7 @@ io.on('connection', (socket) => {
             socket.emit('drawing-history', { history: room.drawingHistory });
         }
 
-        console.log(`📍 Room ${roomId} has ${room.users.size} user(s)`);
+        console.log(`Room ${roomId} has ${room.users.size} user(s)`);
     });
 
     // Drawing events
@@ -258,7 +258,7 @@ io.on('connection', (socket) => {
             });
         }
 
-        console.log(`❌ Disconnected: ${socket.id}`);
+        console.log(`User disconnected: ${socket.id}`);
     });
 
     // Ping/Pong for connection check
@@ -278,7 +278,7 @@ app.get('/canvas', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-    res.json({ status: '✅ Server is running' });
+    res.json({ status: 'Server is running' });
 });
 
 // Get server stats
@@ -300,13 +300,10 @@ app.get('/stats', (req, res) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`
-╔════════════════════════════════════════╗
-║   🎨 Collaborative Canvas Server 🎨    ║
-╠════════════════════════════════════════╣
-║  ✅ Server running on port ${PORT}          ║
-║  📍 URL: http://localhost:${PORT}        ║
-║  📊 Stats: http://localhost:${PORT}/stats   ║
-╚════════════════════════════════════════╝
+   Collaborative Canvas Server
+Server running on port ${PORT}
+URL: http://localhost:${PORT}
+Stats: http://localhost:${PORT}/stats
     `);
 });
 

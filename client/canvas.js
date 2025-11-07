@@ -95,8 +95,9 @@ function initCanvas() {
 // ============ WebSocket Connection ============
 async function connectWebSocket() {
     try {
-        // Connect to server
-        await wsManager.connect('http://localhost:3000');
+        // Connect to server (Render URL or localhost for dev)
+        const SERVER_URL = 'https://realtimecanva.onrender.com'; // Update with your actual Render URL
+        await wsManager.connect(SERVER_URL);
 
         // Join room
         wsManager.joinRoom({

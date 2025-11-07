@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
     cors: {
-        origin: "*",
+        origin: ["*"], // Allow all origins for now; restrict to your Vercel domain in production: ["https://yourapp.vercel.app"]
         methods: ["GET", "POST"]
     }
 });

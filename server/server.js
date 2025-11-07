@@ -29,6 +29,7 @@ function createRoom(roomId, roomName, capacity) {
             capacity,
             users: new Map(),
             drawingHistory: [],
+            userRedoStacks: new Map(), // Per-user redo stacks
             createdAt: new Date()
         });
         console.log(`Room created: ${roomName} (${roomId})`);
@@ -134,17 +135,21 @@ io.on('connection', (socket) => {
     socket.on('draw', (data) => {
         if (!socket.roomId) return;
 
-        const { fromX, fromY, toX, toY, color, width, tool } = data;
+        const { fromX, fromY, toX, toY, color, width, tool, strokeId } = data;
 
-        // Store in history (only store actual strokes, not intermediate points)
+        // Store in history (only store actual strokes/segments)
         if (tool === 'brush' || tool === 'eraser') {
             const room = rooms.get(socket.roomId);
             if (room) {
                 room.drawingHistory.push({
-                    fromX, toY, toX, toY, color, width, tool,
+                    fromX, fromY, toX, toY, color, width, tool,
                     userId: socket.id,
+                    strokeId: strokeId || null,
                     timestamp: Date.now()
                 });
+
+                // Clear this user's redo stack when they draw new stroke group
+                room.userRedoStacks.delete(socket.id);
 
                 // Limit history size
                 if (room.drawingHistory.length > 1000) {
@@ -163,11 +168,12 @@ io.on('connection', (socket) => {
             toY,
             color,
             width,
-            tool
+            tool,
+            strokeId
         });
     });
 
-    // Draw line event
+    // Draw line event (shapes: line, rectangle, circle)
     socket.on('draw-line', (data) => {
         if (!socket.roomId) return;
 
@@ -176,8 +182,12 @@ io.on('connection', (socket) => {
             room.drawingHistory.push({
                 ...data,
                 userId: socket.id,
+                strokeId: data.strokeId || null,
                 timestamp: Date.now()
             });
+
+            // Clear this user's redo stack when they draw new stroke
+            room.userRedoStacks.delete(socket.id);
         }
 
         socket.to(socket.roomId).emit('draw-line', {
@@ -187,16 +197,20 @@ io.on('connection', (socket) => {
         });
     });
 
-    // Clear canvas event
+    // Clear canvas event - clear globally for all users in the room
     socket.on('clear-canvas', () => {
         if (!socket.roomId) return;
 
         const room = rooms.get(socket.roomId);
         if (room) {
+            // Clear drawing history and per-user redo stacks
             room.drawingHistory = [];
-        }
+            room.userRedoStacks = new Map();
+            console.log(`Room ${socket.roomId} canvas cleared by ${socket.id}`);
 
-        socket.to(socket.roomId).emit('clear-canvas');
+            // Broadcast full-history-update (empty history) to ALL clients in the room
+            io.to(socket.roomId).emit('full-history-update', { history: room.drawingHistory });
+        }
     });
 
     // Mouse move / Cursor tracking
@@ -225,24 +239,106 @@ io.on('connection', (socket) => {
         });
     });
 
-    // Undo event
+    // Undo event - Only undo THIS user's last stroke
     socket.on('undo', () => {
-        if (!socket.roomId) return;
+        console.log(`\n>>>>>>>>>>> UNDO RECEIVED FROM CLIENT <<<<<<<<<<<`);
+        console.log(`User ${socket.id} requested undo`);
 
-        socket.to(socket.roomId).emit('undo', {
-            userId: socket.id,
-            userName: socket.userName
-        });
+        if (!socket.roomId) {
+            console.log('No room ID, returning');
+            return;
+        }
+
+        const room = rooms.get(socket.roomId);
+        console.log(`Room found:`, !!room);
+        if (!room) return;
+
+        console.log(`Current history length: ${room.drawingHistory.length}`);
+        console.log(`Looking for last stroke group by userId: ${socket.id}`);
+
+        // Find last stroke entry for this user (to get its strokeId)
+        let targetStrokeId = null;
+        for (let i = room.drawingHistory.length - 1; i >= 0; i--) {
+            const stroke = room.drawingHistory[i];
+            if (stroke.userId === socket.id) {
+                targetStrokeId = stroke.strokeId || null;
+                break;
+            }
+        }
+
+        if (targetStrokeId === null) {
+            // No strokeId available; fallback to removing the last single stroke by this user
+            for (let i = room.drawingHistory.length - 1; i >= 0; i--) {
+                const stroke = room.drawingHistory[i];
+                if (stroke.userId === socket.id) {
+                    const removed = room.drawingHistory.splice(i, 1)[0];
+                    if (!room.userRedoStacks.has(socket.id)) room.userRedoStacks.set(socket.id, []);
+                    room.userRedoStacks.get(socket.id).push({ strokes: [removed] });
+                    console.log(`Removed single stroke (no strokeId) at index ${i}`);
+                    io.to(socket.roomId).emit('full-history-update', { history: room.drawingHistory });
+                    return;
+                }
+            }
+
+            console.log('No strokes found for user to undo');
+            return;
+        }
+
+        // Remove all drawingHistory entries that match this strokeId for this user
+        const removedGroup = [];
+        for (let i = room.drawingHistory.length - 1; i >= 0; i--) {
+            const stroke = room.drawingHistory[i];
+            if (stroke.userId === socket.id && stroke.strokeId === targetStrokeId) {
+                // remove and unshift to keep original order
+                removedGroup.unshift(room.drawingHistory.splice(i, 1)[0]);
+            }
+        }
+
+        if (removedGroup.length > 0) {
+            if (!room.userRedoStacks.has(socket.id)) room.userRedoStacks.set(socket.id, []);
+            // Store the group as a single redo unit
+            room.userRedoStacks.get(socket.id).push({ strokes: removedGroup });
+            console.log(`SUCCESS: Removed stroke group with id ${targetStrokeId}, items: ${removedGroup.length}`);
+
+            // Broadcast updated history to all clients
+            io.to(socket.roomId).emit('full-history-update', { history: room.drawingHistory });
+            console.log('Broadcasted full-history-update after undo');
+        } else {
+            console.log('No stroke group removed (maybe already undone)');
+        }
     });
 
-    // Redo event
+    // Redo event - Only redo THIS user's last undone stroke
     socket.on('redo', () => {
-        if (!socket.roomId) return;
+        console.log(`\n>>>>>>>>>>> REDO RECEIVED FROM CLIENT <<<<<<<<<<<`);
+        console.log(`User ${socket.id} requested redo`);
 
-        socket.to(socket.roomId).emit('redo', {
-            userId: socket.id,
-            userName: socket.userName
-        });
+        if (!socket.roomId) {
+            console.log('No room ID, returning');
+            return;
+        }
+
+        const room = rooms.get(socket.roomId);
+        if (!room) return;
+
+        const userRedoStack = room.userRedoStacks.get(socket.id);
+        console.log(`User's redo stack has ${userRedoStack?.length || 0} items`);
+
+        if (userRedoStack && userRedoStack.length > 0) {
+            // Pop the last group and restore all strokes
+            const group = userRedoStack.pop();
+            if (group && Array.isArray(group.strokes) && group.strokes.length > 0) {
+                // Append strokes back to history (preserving their internal order)
+                group.strokes.forEach(st => room.drawingHistory.push(st));
+                console.log(`Restored group with ${group.strokes.length} strokes`);
+
+                // Broadcast updated history to ALL users in the room
+                io.to(socket.roomId).emit('full-history-update', { history: room.drawingHistory });
+                console.log('Broadcasted full-history-update after redo');
+            }
+        } else {
+            console.log('No items in redo stack');
+        }
     });
 
     // User disconnects

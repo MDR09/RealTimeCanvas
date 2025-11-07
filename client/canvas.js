@@ -33,6 +33,9 @@ const history = [];
 const redoStack = [];
 const MAX_HISTORY = 50;
 
+// Current stroke/group id for grouping brush/eraser segments
+let currentStrokeId = null;
+
 // User Information
 let currentUser = {
     name: localStorage.getItem('userName') || 'Anonymous',
@@ -147,12 +150,105 @@ function setupWebSocketListeners() {
 
     // Remote line drawing
     wsManager.on('remote-draw-line', (data) => {
-        drawLineRemote(data.fromX, data.fromY, data.toX, data.toY, data.color, data.width, 'line');
+        drawLineRemote(data.fromX, data.fromY, data.toX, data.toY, data.color, data.width, data.tool);
     });
 
     // Remote clear canvas
     wsManager.on('remote-clear-canvas', () => {
+        console.log('Received remote clear-canvas — clearing both canvases');
+        // Clear both canvases and reset local history/redo
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         remoteCtx.clearRect(0, 0, remoteCanvas.width, remoteCanvas.height);
+        history.length = 0;
+        redoStack.length = 0;
+        // Save initial cleared state
+        history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    });
+
+    // Full history update (after undo/redo/clear)
+    wsManager.on('full-history-update', (data) => {
+        console.log('\n>>>> FULL HISTORY UPDATE RECEIVED <<<<');
+        console.log('Strokes in updated history:', data.history?.length || 0);
+        
+        // Clear both canvases completely
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        remoteCtx.clearRect(0, 0, remoteCanvas.width, remoteCanvas.height);
+        
+        // Clear local history
+        history.length = 0;
+        redoStack.length = 0;
+        
+        // Redraw ALL strokes from the server's history
+        if (data.history && data.history.length > 0) {
+            console.log(`Redrawing ${data.history.length} strokes from server history...`);
+            
+            data.history.forEach((stroke, idx) => {
+                // console.log(`  [${idx}] Drawing ${stroke.tool} at (${stroke.fromX}, ${stroke.fromY})`);
+                
+                // Draw on BOTH canvases - one for local display, one for composite
+                // On remote context
+                if (stroke.tool === 'eraser') {
+                    remoteCtx.clearRect(stroke.fromX - stroke.width / 2, stroke.fromY - stroke.width / 2, stroke.width, stroke.width);
+                    remoteCtx.clearRect(stroke.toX - stroke.width / 2, stroke.toY - stroke.width / 2, stroke.width, stroke.width);
+                } else if (stroke.tool === 'rectangle') {
+                    remoteCtx.strokeStyle = stroke.color;
+                    remoteCtx.lineWidth = stroke.width;
+                    remoteCtx.strokeRect(stroke.fromX, stroke.fromY, stroke.toX - stroke.fromX, stroke.toY - stroke.fromY);
+                } else if (stroke.tool === 'circle') {
+                    const radius = Math.sqrt(Math.pow(stroke.toX - stroke.fromX, 2) + Math.pow(stroke.toY - stroke.fromY, 2));
+                    remoteCtx.strokeStyle = stroke.color;
+                    remoteCtx.lineWidth = stroke.width;
+                    remoteCtx.beginPath();
+                    remoteCtx.arc(stroke.fromX, stroke.fromY, radius, 0, 2 * Math.PI);
+                    remoteCtx.stroke();
+                } else {
+                    remoteCtx.beginPath();
+                    remoteCtx.moveTo(stroke.fromX, stroke.fromY);
+                    remoteCtx.lineTo(stroke.toX, stroke.toY);
+                    remoteCtx.strokeStyle = stroke.color;
+                    remoteCtx.lineWidth = stroke.width;
+                    remoteCtx.lineCap = 'round';
+                    remoteCtx.lineJoin = 'round';
+                    remoteCtx.stroke();
+                    remoteCtx.closePath();
+                }
+                
+                // On main context
+                if (stroke.tool === 'eraser') {
+                    ctx.clearRect(stroke.fromX - stroke.width / 2, stroke.fromY - stroke.width / 2, stroke.width, stroke.width);
+                    ctx.clearRect(stroke.toX - stroke.width / 2, stroke.toY - stroke.width / 2, stroke.width, stroke.width);
+                } else if (stroke.tool === 'rectangle') {
+                    ctx.strokeStyle = stroke.color;
+                    ctx.lineWidth = stroke.width;
+                    ctx.strokeRect(stroke.fromX, stroke.fromY, stroke.toX - stroke.fromX, stroke.toY - stroke.fromY);
+                } else if (stroke.tool === 'circle') {
+                    const radius = Math.sqrt(Math.pow(stroke.toX - stroke.fromX, 2) + Math.pow(stroke.toY - stroke.fromY, 2));
+                    ctx.strokeStyle = stroke.color;
+                    ctx.lineWidth = stroke.width;
+                    ctx.beginPath();
+                    ctx.arc(stroke.fromX, stroke.fromY, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(stroke.fromX, stroke.fromY);
+                    ctx.lineTo(stroke.toX, stroke.toY);
+                    ctx.strokeStyle = stroke.color;
+                    ctx.lineWidth = stroke.width;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+            });
+            
+            console.log(`Successfully redrawn all strokes`);
+        } else {
+            console.log(`No strokes in history, canvas cleared`);
+        }
+        
+        // Save initial state after redraw
+        history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+        console.log(`>>>> HISTORY UPDATE COMPLETE <<<<\n`);
     });
 
     // Drawing history
@@ -184,6 +280,9 @@ function startDrawing(e) {
     const rect = canvas.getBoundingClientRect();
     startX = e.clientX - rect.left;
     startY = e.clientY - rect.top;
+
+    // Start a new stroke id for this continuous stroke
+    currentStrokeId = `s-${Date.now()}-${Math.floor(Math.random()*100000)}`;
 
     if (currentTool === 'line') {
         saveHistory();
@@ -217,7 +316,8 @@ function handleMouseMove(e) {
                 toY: y,
                 color: currentColor,
                 width: currentStrokeWidth,
-                tool: 'brush'
+                tool: 'brush',
+                strokeId: currentStrokeId
             });
         }
 
@@ -235,14 +335,20 @@ function handleMouseMove(e) {
                 toY: y,
                 color: 'transparent',
                 width: currentStrokeWidth,
-                tool: 'eraser'
+                tool: 'eraser',
+                strokeId: currentStrokeId
             });
         }
 
         startX = x;
         startY = y;
     } else if (currentTool === 'line' || currentTool === 'rectangle' || currentTool === 'circle') {
-        redrawCanvas();
+        // For shapes, redraw from history and then draw the preview shape on top
+        if (history.length > 0) {
+            ctx.putImageData(history[history.length - 1], 0, 0);
+        } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
         
         if (currentTool === 'line') {
             drawLine(startX, startY, x, y, currentColor, currentStrokeWidth);
@@ -261,6 +367,9 @@ function handleTouchStart(e) {
     startY = touch.clientY - rect.top;
     isDrawing = true;
 
+    // Start a new stroke id for touch strokes
+    currentStrokeId = `s-${Date.now()}-${Math.floor(Math.random()*100000)}`;
+
     if (currentTool === 'line') {
         saveHistory();
     }
@@ -276,38 +385,82 @@ function handleTouchMove(e) {
 
     if (currentTool === 'brush') {
         drawLine(startX, startY, x, y, currentColor, currentStrokeWidth);
+        // Send segment for touch as well
+        if (wsManager && wsManager.isSocketConnected()) {
+            wsManager.sendDraw({
+                fromX: startX,
+                fromY: startY,
+                toX: x,
+                toY: y,
+                color: currentColor,
+                width: currentStrokeWidth,
+                tool: 'brush',
+                strokeId: currentStrokeId
+            });
+        }
         startX = x;
         startY = y;
     } else if (currentTool === 'eraser') {
         erase(x, y, currentStrokeWidth);
+        if (wsManager && wsManager.isSocketConnected()) {
+            wsManager.sendDraw({
+                fromX: startX,
+                fromY: startY,
+                toX: x,
+                toY: y,
+                color: 'transparent',
+                width: currentStrokeWidth,
+                tool: 'eraser',
+                strokeId: currentStrokeId
+            });
+        }
         startX = x;
         startY = y;
-    } else if (currentTool === 'line') {
-        redrawCanvas();
-        drawLine(startX, startY, x, y, currentColor, currentStrokeWidth);
     }
 
     e.preventDefault();
 }
 
-function stopDrawing() {
+function stopDrawing(e) {
     if (!isDrawing) return;
     isDrawing = false;
 
     // Send final shape stroke if shape tool
     if ((currentTool === 'line' || currentTool === 'rectangle' || currentTool === 'circle') && wsManager && wsManager.isSocketConnected()) {
+        // Get final mouse/touch coordinates
+        let endX = startX;
+        let endY = startY;
+        
+        if (e) {
+            const rect = canvas.getBoundingClientRect();
+            if (e.clientX !== undefined) {
+                // Mouse event
+                endX = e.clientX - rect.left;
+                endY = e.clientY - rect.top;
+            } else if (e.touches && e.touches.length > 0) {
+                // Touch event
+                endX = e.touches[0].clientX - rect.left;
+                endY = e.touches[0].clientY - rect.top;
+            }
+        }
+        
         wsManager.sendDrawLine({
             fromX: startX,
             fromY: startY,
-            toX: startX,
-            toY: startY,
+            toX: endX,
+            toY: endY,
             color: currentColor,
             width: currentStrokeWidth,
-            tool: currentTool
+            tool: currentTool,
+            // Each shape is its own stroke group
+            strokeId: `s-${Date.now()}-${Math.floor(Math.random()*100000)}`
         });
     }
 
     saveHistory();
+
+    // Clear current stroke id (stroke finished)
+    currentStrokeId = null;
 }
 
 function drawLine(fromX, fromY, toX, toY, color, width) {
@@ -420,34 +573,66 @@ function saveHistory() {
 }
 
 function undoAction() {
-    if (history.length <= 1) {
-        alert('❌ Nothing to undo');
+    // Send undo event to server and rely on server to broadcast
+    // the updated full history to all clients (global effect).
+    console.log('=== UNDO BUTTON CLICKED ===');
+
+    // Basic guards
+    if (!wsManager) {
+        console.warn('No WebSocket manager available - cannot send undo');
         return;
     }
 
-    redoStack.push(history.pop());
-    const previousState = history[history.length - 1];
-    ctx.putImageData(previousState, 0, 0);
+    if (!wsManager.isSocketConnected || !wsManager.isSocketConnected()) {
+        console.warn('WebSocket not connected, cannot send undo');
+        return;
+    }
 
-    // Send undo event
-    if (wsManager && wsManager.isSocketConnected()) {
+    // Debounce rapid clicks (avoid spamming the server)
+    if (undoAction._last && (Date.now() - undoAction._last) < 500) {
+        console.log('Undo ignored (debounced)');
+        return;
+    }
+    undoAction._last = Date.now();
+
+    try {
+        console.log('Sending undo request to server...');
+        // Send undo; server will remove only this user's last stroke and broadcast
         wsManager.sendUndo();
+        console.log('Undo request sent — waiting for server full-history-update');
+    } catch (err) {
+        console.error('Failed to send undo request:', err);
     }
 }
 
 function redoAction() {
-    if (redoStack.length === 0) {
-        alert('❌ Nothing to redo');
+    // Send redo event to server and rely on server broadcasting
+    // the updated full history to all clients (global effect).
+    console.log('=== REDO BUTTON CLICKED ===');
+
+    if (!wsManager) {
+        console.warn('No WebSocket manager available - cannot send redo');
         return;
     }
 
-    const nextState = redoStack.pop();
-    history.push(nextState);
-    ctx.putImageData(nextState, 0, 0);
+    if (!wsManager.isSocketConnected || !wsManager.isSocketConnected()) {
+        console.warn('WebSocket not connected, cannot send redo');
+        return;
+    }
 
-    // Send redo event
-    if (wsManager && wsManager.isSocketConnected()) {
+    // Debounce rapid clicks
+    if (redoAction._last && (Date.now() - redoAction._last) < 500) {
+        console.log('Redo ignored (debounced)');
+        return;
+    }
+    redoAction._last = Date.now();
+
+    try {
+        console.log('Sending redo request to server...');
         wsManager.sendRedo();
+        console.log('Redo request sent — waiting for server full-history-update');
+    } catch (err) {
+        console.error('Failed to send redo request:', err);
     }
 }
 

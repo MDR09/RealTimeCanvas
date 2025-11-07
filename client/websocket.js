@@ -98,6 +98,7 @@ class WebSocketManager {
         this.socket.on('draw-line', (data) => this.emit('remote-draw-line', data));
         this.socket.on('clear-canvas', () => this.emit('remote-clear-canvas'));
         this.socket.on('drawing-history', (data) => this.emit('drawing-history', data));
+        this.socket.on('full-history-update', (data) => this.emit('full-history-update', data));
 
         // Cursor events
         this.socket.on('cursor-move', (data) => this.emit('remote-cursor-move', data));
@@ -105,6 +106,10 @@ class WebSocketManager {
         // Undo/Redo events
         this.socket.on('undo', (data) => this.emit('remote-undo', data));
         this.socket.on('redo', (data) => this.emit('remote-redo', data));
+        this.socket.on('undo-received', (data) => {
+            console.log('>>> Client received undo-received from server:', data);
+            this.emit('undo-received', data);
+        });
 
         // Pong for ping
         this.socket.on('pong', () => console.log('🏓 Pong'));
@@ -137,7 +142,14 @@ class WebSocketManager {
 
     // Send undo
     sendUndo() {
+        console.log('>>> WebSocketManager.sendUndo() called');
+        if (!this.socket) {
+            console.error('>>> ERROR: socket is null');
+            return;
+        }
+        console.log('>>> Emitting "undo" event to server');
         this.socket.emit('undo');
+        console.log('>>> "undo" event emitted to server');
     }
 
     // Send redo

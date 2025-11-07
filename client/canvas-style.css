@@ -377,47 +377,342 @@ body {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .navbar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .navbar-right {
-        width: 100%;
-        justify-content: flex-end;
+        padding: 12px 15px;
+        gap: 12px;
     }
 
     .toolbar {
-        gap: 10px;
+        gap: 12px;
+        padding: 12px 15px;
     }
 
-    .tool-group {
-        padding: 0 5px;
+    .tool-btn {
+        padding: 8px 14px;
+        font-size: 0.9rem;
     }
 
-    .info-bar {
-        flex-direction: column;
-        gap: 8px;
+    .shape-dropdown {
+        padding: 8px 12px;
+        font-size: 0.9rem;
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
+    body {
+        height: 100vh;
+        flex-direction: column;
+    }
+
+    .navbar {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px 15px;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .navbar-left {
+        width: 100%;
+        flex-direction: column;
+        gap: 8px;
+    }
+
     .room-title {
-        font-size: 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .room-info {
+        gap: 8px;
+        flex-wrap: wrap;
     }
 
     .badge {
         font-size: 0.75rem;
-        padding: 4px 8px;
+        padding: 4px 10px;
     }
 
-    .tool-btn {
+    .navbar-center {
+        width: 100%;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .users-count {
+        font-size: 0.85rem;
+    }
+
+    .users-list {
+        gap: 5px;
+        flex-wrap: wrap;
+    }
+
+    .user-badge {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+    }
+
+    .navbar-right {
+        width: 100%;
+        gap: 8px;
+    }
+
+    .btn-icon {
         padding: 6px 12px;
-        font-size: 0.8rem;
+        font-size: 0.85rem;
+        flex: 1;
     }
 
     .toolbar {
+        gap: 8px;
         padding: 10px;
+        flex-wrap: wrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tool-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 8px;
+    }
+
+    .tool-group label {
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+
+    .tool-btn {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+
+    .shape-dropdown {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+
+    .color-picker-container {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    #colorPicker {
+        width: 35px;
+        height: 35px;
+    }
+
+    .color-preview {
+        width: 30px;
+        height: 30px;
+    }
+
+    .stroke-width-display {
+        font-size: 0.75rem;
+        min-width: 40px;
+    }
+
+    #strokeWidth {
+        width: 60px;
+        height: 6px;
+    }
+
+    .canvas-container {
+        flex: 1;
+        min-height: 300px;
+    }
+
+    #mainCanvas,
+    #remoteCanvas,
+    #cursorCanvas {
+        cursor: crosshair;
+    }
+
+    .info-bar {
+        flex-direction: row;
+        gap: 10px;
+        padding: 8px 15px;
+        font-size: 0.8rem;
+        flex-wrap: wrap;
+    }
+
+    .info-item {
+        gap: 4px;
+        font-size: 0.8rem;
+    }
+
+    #statusDisplay {
+        padding: 2px 8px;
+        font-size: 0.8rem;
+    }
+
+    .cursor-indicator {
+        font-size: 0.7rem;
+    }
+
+    .cursor-pointer {
+        width: 18px;
+        height: 18px;
+    }
+
+    .cursor-name {
+        font-size: 0.65rem;
+        padding: 2px 4px;
+    }
+}
+
+@media (max-width: 480px) {
+    .navbar {
+        flex-direction: column;
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    .room-title {
+        font-size: 0.95rem;
+    }
+
+    .badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
+
+    .users-count {
+        font-size: 0.8rem;
+    }
+
+    .user-badge {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+    }
+
+    .btn-icon {
+        padding: 5px 10px;
+        font-size: 0.75rem;
+        flex: 1;
+    }
+
+    .toolbar {
+        gap: 6px;
+        padding: 8px;
+        overflow-x: auto;
+    }
+
+    .tool-group {
+        gap: 4px;
+        padding: 0 6px;
+    }
+
+    .tool-group label {
+        font-size: 0.65rem;
+        display: none;
+    }
+
+    .tool-btn {
+        padding: 5px 8px;
+        font-size: 0.7rem;
+    }
+
+    .shape-dropdown {
+        padding: 5px 8px;
+        font-size: 0.7rem;
+    }
+
+    #colorPicker {
+        width: 32px;
+        height: 32px;
+    }
+
+    .color-preview {
+        width: 28px;
+        height: 28px;
+    }
+
+    .stroke-width-display {
+        font-size: 0.65rem;
+        min-width: 35px;
+    }
+
+    #strokeWidth {
+        width: 50px;
+    }
+
+    .canvas-container {
+        min-height: 250px;
+    }
+
+    .info-bar {
+        padding: 6px 12px;
+        gap: 8px;
+        font-size: 0.75rem;
+    }
+
+    .info-item {
+        font-size: 0.75rem;
+    }
+
+    .cursor-indicator {
+        font-size: 0.65rem;
+    }
+
+    .cursor-pointer {
+        width: 16px;
+        height: 16px;
+    }
+
+    .cursor-name {
+        font-size: 0.6rem;
+        padding: 1px 3px;
+    }
+}
+
+@media (max-width: 350px) {
+    .room-title {
+        font-size: 0.85rem;
+    }
+
+    .badge {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+    }
+
+    .tool-btn {
+        padding: 4px 6px;
+        font-size: 0.65rem;
+    }
+
+    .shape-dropdown {
+        padding: 4px 6px;
+        font-size: 0.65rem;
+    }
+
+    #colorPicker {
+        width: 28px;
+        height: 28px;
+    }
+
+    .canvas-container {
+        min-height: 200px;
+    }
+}
+
+/* Touch Device Optimizations */
+@media (hover: none) and (pointer: coarse) {
+    .tool-btn:active {
+        transform: scale(0.95);
+    }
+
+    .btn-icon:active {
+        transform: scale(0.95);
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+        width: 24px;
+        height: 24px;
     }
 }

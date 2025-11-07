@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Collaborative Canvas</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎨 Collaborative Canvas</h1>
+            <p>Draw together in real-time with your team</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="card main-card">
+            <!-- User Name Section (Always Visible) -->
+            <div class="form-group">
+                <label for="userName">Your Name</label>
+                <input 
+                    type="text" 
+                    id="userName" 
+                    placeholder="e.g., John Doe"
+                    maxlength="30"
+                >
+            </div>
+
+            <!-- Toggle Buttons -->
+            <div class="toggle-buttons">
+                <button class="toggle-btn active" onclick="switchMode('create')">
+                    ➕ Create Room
+                </button>
+                <button class="toggle-btn" onclick="switchMode('join')">
+                    👥 Join Room
+                </button>
+            </div>
+
+            <!-- Create Room Section -->
+            <div id="createSection" class="form-section active">
+                <div class="form-group">
+                    <label for="createRoomName">Room Name</label>
+                    <input 
+                        type="text" 
+                        id="createRoomName" 
+                        placeholder="e.g., Team Design"
+                        maxlength="50"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="createCapacity">Room Capacity</label>
+                    <input type="number" id="createCapacity" min="2" max="20" value="5" />
+                </div>
+
+                <button class="btn btn-primary" onclick="createRoom()">
+                    Create Room
+                </button>
+                <p class="room-id-display" id="createRoomId"></p>
+            </div>
+
+            <!-- Join Room Section -->
+            <div id="joinSection" class="form-section">
+                <div class="form-group">
+                    <label for="joinRoomId">Room ID</label>
+                    <input 
+                        type="text" 
+                        id="joinRoomId" 
+                        placeholder="e.g., ABC123DEF456"
+                        maxlength="20"
+                    >
+                </div>
+
+                <button class="btn btn-secondary" onclick="joinRoom()">
+                    Join Room
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>✨ Start collaborating now! Draw, share, create together.</p>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
